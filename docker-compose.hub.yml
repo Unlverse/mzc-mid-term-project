@@ -1,0 +1,25 @@
+services:
+  backend:
+    image: ${BACKEND_IMAGE}
+    container_name: mzc-backend
+    restart: unless-stopped
+    environment:
+      PORT: 3000
+      DATABASE_URL: ${DATABASE_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      POD_NAME: ${POD_NAME:-}
+      NODE_NAME: ${NODE_NAME:-}
+    ports:
+      - "3000:3000"
+
+  frontend:
+    image: ${FRONTEND_IMAGE}
+    container_name: mzc-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"

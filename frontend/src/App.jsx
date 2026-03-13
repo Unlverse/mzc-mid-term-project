@@ -1,6 +1,7 @@
-﻿import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import { AdminDashboardPage } from './features/admin-auth/AdminDashboardPage';
 import { AdminLoginPage } from './features/admin-auth/AdminLoginPage';
+import { AdminOpsPage } from './pages/AdminOpsPage';
 import { HomePage } from './pages/HomePage';
 import { LookupHubPage } from './pages/LookupHubPage';
 import { ReservationLookupPage } from './pages/ReservationLookupPage';
@@ -17,6 +18,7 @@ function App() {
       <Route path="/reservation/result" element={<ReservationResultPage />} />
       <Route path="/admin/login" element={<AdminLoginPage />} />
       <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
+      <Route path="/admin/ops" element={<AdminOpsPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

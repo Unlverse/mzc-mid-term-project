@@ -32,7 +32,6 @@ export function AdminLoginPage() {
         <div className="dashboard-header simple-header">
           <div>
             <h1>관리자 로그인</h1>
-            <p className="muted">매장 운영과 예약 관리를 위한 전용 화면입니다.</p>
           </div>
           <HomeIconLink />
         </div>

@@ -13,6 +13,11 @@ frontend/.env.*
 backend/.env
 backend/.env.*
 !backend/.env.example
+.env.docker
+.env.docker.*
+!.env.docker.example
+.env.docker.hub
+!.env.docker.hub.example
 
 # Build output
 dist/
@@ -25,11 +30,24 @@ backend/dist/
 # Local docs
 0. docs/
 
+# Docker local overrides / exports
+docker-compose.override.yml
+*.tar
+*.tar.gz
+
 # Tool caches
 .vite/
 frontend/node_modules/.vite/
 .cache/
 .eslintcache
+
+# Future env variants
+.env.vm
+.env.k8s
+
+# Kubernetes local secret manifests
+infra/k8s/**/*.secret.yaml
+infra/k8s/**/secrets.yaml
 
 # Logs
 logs/

@@ -966,6 +966,31 @@ p:last-child {
   color: #b91c1c;
 }
 
+.ops-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.ops-breakdown-panel {
+  margin-top: 1.5rem;
+}
+
+.ops-pod-list {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.ops-pod-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.95rem 1rem;
+  border-radius: 18px;
+  background: #f8f4ee;
+}
+
 @media (max-width: 1080px) {
   .admin-dashboard-grid {
     grid-template-columns: 1fr;

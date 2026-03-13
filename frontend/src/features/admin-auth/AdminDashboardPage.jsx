@@ -280,7 +280,7 @@ export function AdminDashboardPage() {
         slotIntervalMinutes: String(updated.slotIntervalMinutes),
         slotCapacity: String(updated.slotCapacity),
       });
-      setSuccessMessage(`예약 설정을 저장했습니다. 현재 시작 시간: ${updated.reservationStartTime}`);
+      setSuccessMessage('예약 설정을 저장했습니다.');
     } catch (submitError) {
       setError(submitError.message);
     } finally {
@@ -307,16 +307,25 @@ export function AdminDashboardPage() {
             <p className="eyebrow">mzc</p>
             <h1>운영 대시보드</h1>
           </div>
-          <button
-            type="button"
-            className="secondary-button"
-            onClick={() => {
-              clearAdminToken();
-              navigate('/admin/login');
-            }}
-          >
-            로그아웃
-          </button>
+          <div className="action-row">
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => navigate('/admin/ops')}
+            >
+              운영 확인
+            </button>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => {
+                clearAdminToken();
+                navigate('/admin/login');
+              }}
+            >
+              로그아웃
+            </button>
+          </div>
         </div>
         {error ? <div className="error-text">{error}</div> : null}
         {successMessage ? <div className="success-text">{successMessage}</div> : null}
