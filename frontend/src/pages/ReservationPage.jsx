@@ -1,5 +1,6 @@
-﻿import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { HomeIconLink } from '../components/HomeIconLink';
 import { createReservation, getAvailableReservationTimes } from '../services/reservation';
 import { setReservationLookup, setReservationResult } from '../utils/reservation-storage';
 
@@ -101,12 +102,12 @@ export function ReservationPage() {
 
   return (
     <div className="page-shell">
-      <div className="card dashboard-card">
+      <div className="card dashboard-card reservation-form-shell refined-card">
         <div className="dashboard-header">
           <div>
             <h1>예약하기</h1>
           </div>
-          <Link to="/reservation/lookup" className="secondary-button link-button">예약 조회</Link>
+          <HomeIconLink />
         </div>
         {error ? <div className="error-text">{error}</div> : null}
         <form className="form-stack" onSubmit={handleSubmit}>
@@ -155,7 +156,7 @@ export function ReservationPage() {
             <input type="number" min="1" max="10" value={form.partySize} onChange={(event) => setForm((current) => ({ ...current, partySize: event.target.value }))} />
           </label>
           <button type="submit" disabled={submitting || !selectedTime}>
-            {submitting ? '예약 생성 중...' : '예약 생성'}
+            {submitting ? '예약 생성 중...' : '예약 확정하기'}
           </button>
         </form>
       </div>

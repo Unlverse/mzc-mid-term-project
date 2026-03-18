@@ -48,6 +48,7 @@ frontend/node_modules/.vite/
 # Kubernetes local secret manifests
 infra/k8s/**/*.secret.yaml
 infra/k8s/**/secrets.yaml
+helm/**/values*.local.yaml
 
 # Logs
 logs/

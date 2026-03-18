@@ -1,10 +1,13 @@
 ﻿import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  deleteAdminGalleryImage,
   getAdminReservations,
   getAdminReservationSettings,
   updateAdminReservationSettings,
+  uploadAdminGalleryImage,
 } from '../../services/auth';
+import { getGalleryImages, resolveGalleryImageUrl } from '../../services/gallery';
 import { clearAdminToken, getAdminToken } from '../../utils/auth-storage';
 
 const reservationStatusLabelMap = {
@@ -191,6 +194,98 @@ function ReservationListSection({
   );
 }
 
+function GalleryManagerSection({
+  items,
+  loading,
+  uploading,
+  deletingName,
+  selectedFile,
+  onFileChange,
+  onRefresh,
+  onUpload,
+  onDelete,
+}) {
+  return (
+    <section className="section-card admin-panel admin-span-full">
+      <div className="section-head section-head-row">
+        <div>
+          <h2>갤러리 관리</h2>
+        </div>
+        <button type="button" className="secondary-button" onClick={onRefresh} disabled={loading}>
+          {loading ? '불러오는 중...' : '새로고침'}
+        </button>
+      </div>
+      <div className="form-stack">
+        <label className="admin-gallery-upload-field">
+          <span>이미지 업로드</span>
+          <div className="admin-gallery-upload-shell">
+            <span className="admin-gallery-file-name">
+              {selectedFile?.name ?? '업로드할 이미지를 선택해 주세요.'}
+            </span>
+            <span className="admin-gallery-file-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none">
+                <rect
+                  x="4"
+                  y="5"
+                  width="16"
+                  height="14"
+                  rx="3"
+                  stroke="currentColor"
+                  strokeWidth="1.7"
+                />
+                <circle cx="9" cy="10" r="1.5" fill="currentColor" />
+                <path
+                  d="M7 16l3.2-3.4a1 1 0 011.46 0L14 15l1.6-1.8a1 1 0 011.48.02L19 15.4"
+                  stroke="currentColor"
+                  strokeWidth="1.7"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </span>
+            <input type="file" accept="image/*" onChange={onFileChange} />
+          </div>
+        </label>
+        <button type="button" onClick={onUpload} disabled={!selectedFile || uploading}>
+          {uploading ? '업로드 중...' : '갤러리 이미지 업로드'}
+        </button>
+      </div>
+      <div className="admin-gallery-list">
+        {items.length > 0 ? (
+          items.map((item) => (
+            <article key={item.name} className="admin-gallery-item">
+              <div
+                className="admin-gallery-thumb"
+                style={{
+                  backgroundImage: `url('${resolveGalleryImageUrl(item.url)}')`,
+                }}
+              />
+              <div className="admin-gallery-meta">
+                <strong>{item.name}</strong>
+                <span className="muted">
+                  {item.uploadedAt
+                    ? new Date(item.uploadedAt).toLocaleString('ko-KR')
+                    : '업로드 시간 확인 불가'}
+                </span>
+              </div>
+              <button
+                type="button"
+                className="danger-button action-button-soft"
+                onClick={() => onDelete(item.name)}
+                disabled={deletingName === item.name}
+              >
+                {deletingName === item.name ? '삭제 중...' : '삭제'}
+              </button>
+            </article>
+          ))
+        ) : (
+          <p className="muted admin-gallery-empty">업로드된 이미지가 없습니다.</p>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function getTodayDate() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -203,10 +298,15 @@ export function AdminDashboardPage() {
     status: '',
   });
   const [reservationItems, setReservationItems] = useState([]);
+  const [galleryItems, setGalleryItems] = useState([]);
+  const [selectedGalleryFile, setSelectedGalleryFile] = useState(null);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [reservationSaving, setReservationSaving] = useState(false);
   const [reservationLoading, setReservationLoading] = useState(false);
+  const [galleryLoading, setGalleryLoading] = useState(false);
+  const [galleryUploading, setGalleryUploading] = useState(false);
+  const [galleryDeletingName, setGalleryDeletingName] = useState('');
 
   async function loadReservationItems(token, filters = reservationFilters) {
     setReservationLoading(true);
@@ -218,6 +318,16 @@ export function AdminDashboardPage() {
     }
   }
 
+  async function loadGalleryItems() {
+    setGalleryLoading(true);
+    try {
+      const response = await getGalleryImages();
+      setGalleryItems(response.items ?? []);
+    } finally {
+      setGalleryLoading(false);
+    }
+  }
+
   useEffect(() => {
     const token = getAdminToken();
     if (!token) {
@@ -225,11 +335,12 @@ export function AdminDashboardPage() {
       return;
     }
 
-    Promise.all([
-      getAdminReservationSettings(token),
-      getAdminReservations(token, reservationFilters),
-    ])
-      .then(([reservation, reservationList]) => {
+      Promise.all([
+        getAdminReservationSettings(token),
+        getAdminReservations(token, reservationFilters),
+        getGalleryImages(),
+      ])
+      .then(([reservation, reservationList, gallery]) => {
         setReservationForm({
           reservationStartTime: reservation.reservationStartTime,
           reservationEndTime: reservation.reservationEndTime,
@@ -237,6 +348,7 @@ export function AdminDashboardPage() {
           slotCapacity: String(reservation.slotCapacity),
         });
         setReservationItems(reservationList.items ?? []);
+        setGalleryItems(gallery.items ?? []);
       })
       .catch((requestError) => {
         setError(requestError.message);
@@ -299,6 +411,44 @@ export function AdminDashboardPage() {
     }
   }
 
+  async function handleGalleryUpload() {
+    const token = getAdminToken();
+    if (!token || !selectedGalleryFile) return;
+    setGalleryUploading(true);
+    setError('');
+    setSuccessMessage('');
+
+    try {
+      await uploadAdminGalleryImage(token, selectedGalleryFile);
+      setSelectedGalleryFile(null);
+      await loadGalleryItems();
+      setSuccessMessage('갤러리 이미지를 업로드했습니다.');
+    } catch (uploadError) {
+      setError(uploadError.message);
+    } finally {
+      setGalleryUploading(false);
+    }
+  }
+
+  async function handleGalleryDelete(fileName) {
+    const token = getAdminToken();
+    if (!token || !fileName) return;
+
+    setGalleryDeletingName(fileName);
+    setError('');
+    setSuccessMessage('');
+
+    try {
+      await deleteAdminGalleryImage(token, fileName);
+      await loadGalleryItems();
+      setSuccessMessage('갤러리 이미지를 삭제했습니다.');
+    } catch (deleteError) {
+      setError(deleteError.message);
+    } finally {
+      setGalleryDeletingName('');
+    }
+  }
+
   return (
     <div className="page-shell admin-page-shell">
       <div className="card dashboard-card admin-dashboard-card refined-card">
@@ -313,7 +463,7 @@ export function AdminDashboardPage() {
               className="secondary-button"
               onClick={() => navigate('/admin/ops')}
             >
-              운영 확인
+              세션 확인
             </button>
             <button
               type="button"
@@ -349,6 +499,23 @@ export function AdminDashboardPage() {
               loading={reservationLoading}
               onFilterChange={updateReservationFilter}
               onRefresh={handleReservationRefresh}
+            />
+            <GalleryManagerSection
+              items={galleryItems}
+              loading={galleryLoading}
+              uploading={galleryUploading}
+              deletingName={galleryDeletingName}
+              selectedFile={selectedGalleryFile}
+              onFileChange={(event) =>
+                setSelectedGalleryFile(event.target.files?.[0] ?? null)
+              }
+              onRefresh={() => {
+                loadGalleryItems().catch((requestError) =>
+                  setError(requestError.message),
+                );
+              }}
+              onUpload={handleGalleryUpload}
+              onDelete={handleGalleryDelete}
             />
           </div>
         ) : (

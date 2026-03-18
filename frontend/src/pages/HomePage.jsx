@@ -1,34 +1,36 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { getGalleryImages, resolveGalleryImageUrl } from '../services/gallery';
 
 const teamMembers = ['노예림', '백유안', '서기표', '유승호', '최재우'];
 
 const menuNotes = [
-  'MZC에서는 엄선된 식재, 최상의 테크닉을 다양한 방식으로 즐길 수 있도록 구성한 코스 요리를 제공합니다.',
-  '예약 시 식사에 약 2 시간 정도가 소요됨을 고려 부탁 드립니다.',
-  '특정 음식에 대한 제약 사항이 있는 고객께서는 예약 시 미리 알려주시면 감사하겠습니다.',
-  '또한 필수로 사용되는 일부 식재는 대체가 어려울 수 있음을 양해 부탁 드립니다.',
+  'MZC는 제철 식재료와 정교한 조리 과정을 바탕으로 코스 요리를 선보입니다.',
+  '예약 후 식사 시간은 약 2시간 정도 소요될 수 있습니다.',
+  '알레르기 또는 식이 제한 사항이 있다면 예약 전에 미리 알려주세요.',
+  '시장 상황에 따라 일부 식재료와 메뉴 구성은 변경될 수 있습니다.',
 ];
 
 const infoBlocks = [
   {
     title: 'Hours',
     lines: [
-      '월 - 일 12:00 - 22:00 (라스트 오더 19시)',
-      '비정기적 휴무는 예약 사이트 내 안내를 참조해 주시기 바랍니다.',
+      '월 - 일 12:00 - 22:00 (라스트 오더 19:00)',
+      '비정기 휴무는 예약 페이지 공지를 참고해주세요.',
     ],
   },
   {
     title: 'Menu',
-    lines: ['테이스팅 메뉴', '350,000원'],
+    lines: ['테이스팅 코스', '350,000원'],
   },
   {
     title: 'Contact',
-    lines: ['서울특별시 강남구 역삼동 논현로85길 46', '(+82) 2-1234-5678'],
+    lines: ['서울특별시 강남구 논현로85길 46', '(+82) 2-1234-5678'],
   },
 ];
 
 const mapEmbedUrl =
-  'https://www.google.com/maps?q=%EC%84%9C%EC%9A%B8%ED%8A%B9%EB%B3%84%EC%8B%9C%20%EA%B0%95%EB%82%A8%EA%B5%AC%20%EC%97%AD%EC%82%BC%EB%8F%99%20%EB%85%BC%ED%98%84%EB%A1%9C85%EA%B8%B8%2046&output=embed';
+  'https://www.google.com/maps?q=%EC%84%9C%EC%9A%B8%ED%8A%B9%EB%B3%84%EC%8B%9C%20%EA%B0%95%EB%82%A8%EA%B5%AC%20%EB%85%BC%ED%98%84%EB%A1%9C85%EA%B8%B8%2046&output=embed';
 
 const galleryImages = [
   '/assets/MZC 전경 1.png',
@@ -42,6 +44,86 @@ const galleryImages = [
 ];
 
 export function HomePage() {
+  const [galleryItems, setGalleryItems] = useState(
+    galleryImages.map((image) => ({ url: image })),
+  );
+  const [currentGalleryIndex, setCurrentGalleryIndex] = useState(0);
+  const [showScrollTopButton, setShowScrollTopButton] = useState(false);
+
+  useEffect(() => {
+    let ignore = false;
+
+    getGalleryImages()
+      .then((response) => {
+        if (ignore) {
+          return;
+        }
+
+        if (Array.isArray(response.items) && response.items.length > 0) {
+          const uploadedItems = response.items.filter(
+            (item) => typeof item?.url === 'string' && item.url.length > 0,
+          );
+          const fallbackItems = galleryImages.map((image) => ({ url: image }));
+          const mergedItems = [...uploadedItems, ...fallbackItems].filter(
+            (item, index, items) =>
+              items.findIndex((candidate) => candidate.url === item.url) === index,
+          );
+          setGalleryItems(mergedItems);
+        }
+      })
+      .catch(() => {
+        // Keep bundled images as a fallback.
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    setCurrentGalleryIndex(0);
+  }, [galleryItems.length]);
+
+  useEffect(() => {
+    function handleScroll() {
+      setShowScrollTopButton(window.scrollY > 420);
+    }
+
+    handleScroll();
+    window.addEventListener('scroll', handleScroll, { passive: true });
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+    };
+  }, []);
+
+  const hasGalleryItems = galleryItems.length > 0;
+  const currentGalleryItem = hasGalleryItems
+    ? galleryItems[currentGalleryIndex % galleryItems.length]
+    : null;
+
+  function showPreviousGalleryImage() {
+    if (!hasGalleryItems) {
+      return;
+    }
+
+    setCurrentGalleryIndex((current) =>
+      current === 0 ? galleryItems.length - 1 : current - 1,
+    );
+  }
+
+  function showNextGalleryImage() {
+    if (!hasGalleryItems) {
+      return;
+    }
+
+    setCurrentGalleryIndex((current) => (current + 1) % galleryItems.length);
+  }
+
+  function scrollToTop() {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
   return (
     <div className="restaurant-page">
       <section
@@ -53,21 +135,27 @@ export function HomePage() {
       >
         <header className="top-nav top-nav-sticky">
           <div className="brand-block">
-            <span className="brand-name">MZC</span>
+            <a href="#" className="brand-name" aria-label="Go to home top">
+              MZC.
+            </a>
           </div>
           <nav className="nav-links nav-links-anchor">
             <a href="#team">TEAM</a>
             <a href="#menu">MENU</a>
             <a href="#info">INFO</a>
-            <a href="#gallary">GALLARY</a>
+            <a href="#gallery">GALLERY</a>
             <a href="#reservation">RESERVATION</a>
           </nav>
         </header>
 
         <div className="hero-copy-block hero-copy-centered">
           <div className="hero-logo-stack">
-            <img className="hero-logo-image" src="/assets/MZC_LOGO-removebg-preview.png" alt="MZC logo" />
-            <h1>MZC</h1>
+            <img
+              className="hero-logo-image"
+              src="/assets/mzc_logo_white-Photoroom.png"
+              alt="MZC logo"
+            />
+            <h1>MZC.</h1>
           </div>
         </div>
       </section>
@@ -126,61 +214,118 @@ export function HomePage() {
           </div>
         </section>
 
-        <section id="gallary" className="anchor-section home-anchor-section">
+        <section id="gallery" className="anchor-section home-anchor-section">
           <div className="section-title-block section-title-compact">
-            <h2>Gallary</h2>
+            <h2>Gallery</h2>
           </div>
-          <div className="gallery-grid gallery-grid-large">
-            {galleryImages.map((image, index) => (
-              <article key={image} className="gallery-card">
-                <div
-                  className="gallery-photo"
-                  style={{ backgroundImage: `url('${image}')` }}
-                  aria-label={`MZC gallery ${index + 1}`}
-                />
-              </article>
-            ))}
+          <div className="gallery-slider-shell">
+            {currentGalleryItem ? (
+              <>
+                <article className="gallery-card gallery-card-featured">
+                  <div
+                    className="gallery-photo gallery-photo-featured"
+                    style={{
+                      backgroundImage: `url('${resolveGalleryImageUrl(
+                        currentGalleryItem.url,
+                      )}')`,
+                    }}
+                    aria-label={`MZC gallery ${currentGalleryIndex + 1}`}
+                  />
+                  <button
+                    type="button"
+                    className="gallery-arrow gallery-arrow-left"
+                    onClick={showPreviousGalleryImage}
+                    aria-label="Previous gallery image"
+                  >
+                    {'<'}
+                  </button>
+                  <button
+                    type="button"
+                    className="gallery-arrow gallery-arrow-right"
+                    onClick={showNextGalleryImage}
+                    aria-label="Next gallery image"
+                  >
+                    {'>'}
+                  </button>
+                </article>
+                <div className="gallery-slider-controls">
+                  <div className="gallery-dots" aria-label="Gallery pagination">
+                    {galleryItems.map((item, index) => (
+                      <button
+                        key={item.url}
+                        type="button"
+                        className={`gallery-dot${
+                          index === currentGalleryIndex ? ' is-active' : ''
+                        }`}
+                        onClick={() => setCurrentGalleryIndex(index)}
+                        aria-label={`Go to gallery image ${index + 1}`}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <p className="muted">표시할 갤러리 이미지가 없습니다.</p>
+            )}
           </div>
         </section>
 
-        <section id="reservation" className="anchor-section reservation-anchor-section">
+        <section
+          id="reservation"
+          className="anchor-section reservation-anchor-section"
+        >
           <div className="section-title-block section-title-compact">
             <h2>Reservation</h2>
           </div>
           <div className="reservation-copy-layout">
-            <p className="long-copy reservation-intro-copy">
-              MZC는 사전 예약제로 운영되고 있으며, 온라인 예약, 전화를 통해 예약 가능합니다.
+            <p className="long-copy reservation-intro-copy reservation-stacked-copy">
+              <span className="reservation-line">
+                MZC는 사전 예약제로 운영되며, 오픈 일정에 맞춰 예약이 진행됩니다.
+              </span>
+              <span className="reservation-line">
+                예약 조회를 통해 기존 예약도 바로 확인하실 수 있습니다.
+              </span>
             </p>
             <div className="reservation-notice-list">
-              <p className="reservation-notice-title">예약 시 유의 사항</p>
-              <p className="long-copy">
-                사전에 예약하신 인원에 변경이 있을 경우 매장으로 연락 바랍니다. 예약된 인원보다 적게
-                방문하실 경우에는 확정된 예약 인원수에 따라 식사 금액이 청구됨을 양해 부탁 드립니다.
-                또한 예약 당일에 추가 인원으로 방문하실 경우 식사 제공이 어려울 수 있으므로, 미리 연락
-                주시기 바랍니다.
+              <p className="reservation-notice-title">예약 전 안내</p>
+              <p className="long-copy reservation-stacked-copy">
+                <span className="reservation-line">
+                  예약 인원 변경이 있는 경우 매장으로 미리 연락 부탁드립니다.
+                </span>
+                <span className="reservation-line">
+                  좌석과 서비스는 최종 예약 인원 기준으로 준비됩니다.
+                </span>
               </p>
               <p className="long-copy">
-                방문하신 인원 수에 맞게 식사가 준비되며, 식사 시간은 2시간 이상 소요됩니다. 별도의
-                어린이 메뉴는 준비되어 있지 않으나, 성인 기준 풀 코스 메뉴를 즐기실 수 있으면 어린이
-                고객도 예약 가능합니다.
+                코스 특성상 식사에는 약 2시간 정도가 소요될 수 있습니다.
               </p>
               <p className="long-copy">
-                사전 연락 없이 30분 이상 늦으실 경우, 노쇼로 간주되어 예약금 환불 및 식사 이용이 어려운
-                점 양해 부탁 드립니다.
+                별도 연락 없이 30분 이상 지연될 경우 예약이 자동 취소될 수 있습니다.
               </p>
               <p className="long-copy">
-                테이블과 좌석 배치는 예약 주신 순서와 인원에 맞게 이루어지며, 특정 좌석 지정 요청은
-                반영이 어려울 수 있습니다.
+                좌석은 예약 순서와 인원 구성에 맞춰 운영되며 특정 좌석 지정은 어려울 수 있습니다.
               </p>
             </div>
             <div className="hero-actions reservation-cta-row">
               <Link to="/reservation" className="hero-button primary">
                 예약하기
               </Link>
+              <Link to="/reservation/lookup" className="hero-button secondary">
+                예약조회
+              </Link>
             </div>
           </div>
         </section>
       </main>
+
+      <button
+        type="button"
+        className={`scroll-top-button${showScrollTopButton ? ' is-visible' : ''}`}
+        onClick={scrollToTop}
+        aria-label="Scroll to top"
+      >
+        ↑
+      </button>
     </div>
   );
 }

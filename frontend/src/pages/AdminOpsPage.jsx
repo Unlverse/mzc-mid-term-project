@@ -57,8 +57,7 @@ export function AdminOpsPage() {
       <div className="card dashboard-card admin-dashboard-card refined-card">
         <div className="dashboard-header ops-page-header">
           <div>
-            <h1>운영 확인</h1>
-            <p className="muted">새로고침할 때마다 현재 응답 파드와 로그인 유지 상태를 확인할 수 있습니다.</p>
+            <h1>세션 확인</h1>
           </div>
           <div className="action-row">
             <button type="button" className="secondary-button" onClick={fetchServerInfo} disabled={loading}>
@@ -72,7 +71,7 @@ export function AdminOpsPage() {
                 setStats(getOpsCounters());
               }}
             >
-              카운트 초기화
+              초기화
             </button>
             <HomeIconLink to="/admin/dashboard" />
           </div>

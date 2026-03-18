@@ -1,9 +1,18 @@
-﻿import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import express from 'express';
+import { existsSync, mkdirSync } from 'fs';
+import { join } from 'path';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const uploadDir =
+    process.env.UPLOAD_DIR?.trim() || join(process.cwd(), 'uploads');
+
+  if (!existsSync(uploadDir)) {
+    mkdirSync(uploadDir, { recursive: true });
+  }
 
   app.enableCors({
     origin: [
@@ -20,6 +29,7 @@ async function bootstrap() {
   });
 
   app.setGlobalPrefix('api');
+  app.use('/uploads', express.static(uploadDir));
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

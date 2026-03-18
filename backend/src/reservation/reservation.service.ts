@@ -1,5 +1,12 @@
-﻿import { BadRequestException, ConflictException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { compare, hash } from 'bcryptjs';
+import { MetricsService } from '../metrics/metrics.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CancelReservationDto } from './dto/cancel-reservation.dto';
 import { CreateReservationDto } from './dto/create-reservation.dto';
@@ -8,7 +15,10 @@ import { UpdateReservationStatusDto } from './dto/update-reservation-status.dto'
 
 @Injectable()
 export class ReservationService {
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly metricsService: MetricsService,
+  ) {}
 
   async getAvailableTimes(date: string) {
     const reservationDate = this.parseDate(date);
@@ -54,114 +64,132 @@ export class ReservationService {
   }
 
   async createReservation(dto: CreateReservationDto) {
-    const reservationDate = this.parseDate(dto.reservationDate);
-    this.assertDateWithinCurrentMonth(reservationDate);
-    const reservationDateTime = this.parseDateTime(dto.reservationDate, dto.reservationTime);
+    try {
+      const reservationDate = this.parseDate(dto.reservationDate);
+      this.assertDateWithinCurrentMonth(reservationDate);
+      const reservationDateTime = this.parseDateTime(dto.reservationDate, dto.reservationTime);
 
-    if (reservationDateTime.getTime() <= Date.now()) {
-      throw new BadRequestException('Reservation time must be in the future.');
-    }
+      if (reservationDateTime.getTime() <= Date.now()) {
+        throw new BadRequestException('Reservation time must be in the future.');
+      }
 
-    const settings = await this.getReservationSettingsEntity();
-    const timeSlots = this.buildTimeSlots(
-      settings.reservationStartTime,
-      settings.reservationEndTime,
-      settings.slotIntervalMinutes,
-    );
+      const settings = await this.getReservationSettingsEntity();
+      const timeSlots = this.buildTimeSlots(
+        settings.reservationStartTime,
+        settings.reservationEndTime,
+        settings.slotIntervalMinutes,
+      );
 
-    if (!timeSlots.includes(dto.reservationTime)) {
-      throw new BadRequestException('Invalid reservation time.');
-    }
+      if (!timeSlots.includes(dto.reservationTime)) {
+        throw new BadRequestException('Invalid reservation time.');
+      }
 
-    const existingCount = await this.prismaService.reservation.count({
-      where: {
-        reservationDate,
-        reservationTime: dto.reservationTime,
-        status: 'CONFIRMED',
-      },
-    });
-
-    if (existingCount >= settings.slotCapacity) {
-      throw new ConflictException('Reservation slot is full.');
-    }
-
-    const temporaryPassword = this.generateTemporaryPassword();
-    const temporaryPasswordHash = await hash(temporaryPassword, 10);
-
-    const result = await this.prismaService.$transaction(async (tx) => {
-      const existingSequence = await tx.reservationDailySequence.findUnique({
-        where: { sequenceDate: reservationDate },
-      });
-
-      const sequence = existingSequence
-        ? await tx.reservationDailySequence.update({
-            where: { sequenceDate: reservationDate },
-            data: { lastSequence: { increment: 1 } },
-          })
-        : await tx.reservationDailySequence.create({
-            data: {
-              sequenceDate: reservationDate,
-              lastSequence: 1,
-            },
-          });
-
-      const reservationNumber = `${dto.reservationDate.replace(/-/g, '')}${String(sequence.lastSequence).padStart(4, '0')}`;
-
-      const reservation = await tx.reservation.create({
-        data: {
-          reservationNumber,
+      const existingCount = await this.prismaService.reservation.count({
+        where: {
           reservationDate,
           reservationTime: dto.reservationTime,
-          customerName: dto.customerName,
-          customerPhone: dto.customerPhone,
-          partySize: dto.partySize,
-          temporaryPasswordHash,
           status: 'CONFIRMED',
         },
       });
 
-      return { reservation, reservationNumber };
-    });
+      if (existingCount >= settings.slotCapacity) {
+        throw new ConflictException('Reservation slot is full.');
+      }
 
-    return this.toReservationDetail(result.reservation, temporaryPassword);
+      const temporaryPassword = this.generateTemporaryPassword();
+      const temporaryPasswordHash = await hash(temporaryPassword, 10);
+
+      const result = await this.prismaService.$transaction(async (tx) => {
+        const existingSequence = await tx.reservationDailySequence.findUnique({
+          where: { sequenceDate: reservationDate },
+        });
+
+        const sequence = existingSequence
+          ? await tx.reservationDailySequence.update({
+              where: { sequenceDate: reservationDate },
+              data: { lastSequence: { increment: 1 } },
+            })
+          : await tx.reservationDailySequence.create({
+              data: {
+                sequenceDate: reservationDate,
+                lastSequence: 1,
+              },
+            });
+
+        const reservationNumber = `${dto.reservationDate.replace(/-/g, '')}${String(sequence.lastSequence).padStart(4, '0')}`;
+
+        const reservation = await tx.reservation.create({
+          data: {
+            reservationNumber,
+            reservationDate,
+            reservationTime: dto.reservationTime,
+            customerName: dto.customerName,
+            customerPhone: dto.customerPhone,
+            partySize: dto.partySize,
+            temporaryPasswordHash,
+            status: 'CONFIRMED',
+          },
+        });
+
+        return { reservation };
+      });
+
+      this.metricsService.recordBusinessEvent('reservation_create', 'success');
+      return this.toReservationDetail(result.reservation, temporaryPassword);
+    } catch (error) {
+      this.metricsService.recordBusinessEvent('reservation_create', 'failure');
+      throw error;
+    }
   }
 
   async lookupReservation(dto: LookupReservationDto) {
-    const reservation = await this.findReservationByLookup(dto);
+    try {
+      const reservation = await this.findReservationByLookup(dto);
 
-    return this.toReservationDetail(reservation);
+      this.metricsService.recordBusinessEvent('reservation_lookup', 'success');
+      return this.toReservationDetail(reservation);
+    } catch (error) {
+      this.metricsService.recordBusinessEvent('reservation_lookup', 'failure');
+      throw error;
+    }
   }
 
   async cancelReservation(dto: CancelReservationDto) {
-    const reservation = await this.findReservationByLookup(dto);
+    try {
+      const reservation = await this.findReservationByLookup(dto);
 
-    if (reservation.status !== 'CONFIRMED') {
-      throw new ConflictException('Reservation cannot be canceled.');
+      if (reservation.status !== 'CONFIRMED') {
+        throw new ConflictException('Reservation cannot be canceled.');
+      }
+
+      const reservationDateString = reservation.reservationDate.toISOString().slice(0, 10);
+      const reservationDateTime = this.parseDateTime(
+        reservationDateString,
+        reservation.reservationTime,
+      );
+
+      if (reservationDateTime.getTime() <= Date.now()) {
+        throw new ConflictException('Past reservations cannot be canceled.');
+      }
+
+      const canceledReservation = await this.prismaService.reservation.update({
+        where: { id: reservation.id },
+        data: {
+          status: 'CANCELED',
+          canceledAt: new Date(),
+        },
+      });
+
+      this.metricsService.recordBusinessEvent('reservation_cancel', 'success');
+      return {
+        reservationId: Number(canceledReservation.id),
+        reservationNumber: canceledReservation.reservationNumber,
+        status: canceledReservation.status,
+      };
+    } catch (error) {
+      this.metricsService.recordBusinessEvent('reservation_cancel', 'failure');
+      throw error;
     }
-
-    const reservationDateString = reservation.reservationDate.toISOString().slice(0, 10);
-    const reservationDateTime = this.parseDateTime(
-      reservationDateString,
-      reservation.reservationTime,
-    );
-
-    if (reservationDateTime.getTime() <= Date.now()) {
-      throw new ConflictException('Past reservations cannot be canceled.');
-    }
-
-    const canceledReservation = await this.prismaService.reservation.update({
-      where: { id: reservation.id },
-      data: {
-        status: 'CANCELED',
-        canceledAt: new Date(),
-      },
-    });
-
-    return {
-      reservationId: Number(canceledReservation.id),
-      reservationNumber: canceledReservation.reservationNumber,
-      status: canceledReservation.status,
-    };
   }
 
   async getReservationSettings() {
@@ -327,7 +355,8 @@ export class ReservationService {
     min: number,
     max: number,
   ) {
-    const nextValue = value === undefined || value === null || value === '' ? fallback : Number(value);
+    const nextValue =
+      value === undefined || value === null || value === '' ? fallback : Number(value);
 
     if (!Number.isInteger(nextValue)) {
       throw new BadRequestException(`${fieldName} must be an integer number.`);
