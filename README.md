@@ -61,16 +61,6 @@ frontend/   React 고객/관리자 화면
 ```bash
 cd backend
 npm install
-copy .env.example .env
-```
-
-예시 `.env`
-
-```env
-DATABASE_URL="mysql://root:1234@localhost:3306/restaurant_waiting"
-JWT_SECRET="dev-secret"
-JWT_EXPIRES_IN="1h"
-PORT=3000
 ```
 
 DB 반영
@@ -86,23 +76,10 @@ npm run seed
 npm run start:dev
 ```
 
-기본 관리자 계정
-
-```text
-loginId: admin
-password: admin1234
-```
-
 ## Frontend Setup
 
 ```bash
 cd frontend
 npm install
 npm run dev
-```
-
-필요하면 `.env` 추가
-
-```env
-VITE_API_BASE_URL=http://localhost:3000/api
 ```
